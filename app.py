@@ -1,4 +1,4 @@
-"""SoilSense-Ai — minimal dashboard for masked Transformer sensor screening/imputation."""
+"""SoilSense-Ai — minimal dashboard for Transformer sensor screening/imputation."""
 from pathlib import Path
 import hashlib
 import json
