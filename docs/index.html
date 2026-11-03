@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SoilSense | Sensor data tools</title>
+  <title>SoilSense-Ai | Sensor data tools</title>
   <meta name="description" content="Upload CSV sensor readings to detect possible anomalies or reconstruct missing measurements.">
   <style>
     :root{--green:#164637;--green2:#24745c;--cream:#fafbf7;--ink:#21352d;--muted:#597169;--line:#dce7df}
@@ -18,15 +18,15 @@
   </style>
 </head>
 <body>
-<header><div class="wrap nav"><div class="logo"><span>✳</span> SoilSense</div><small>Environmental sensor data tools</small></div></header>
+<header><div class="wrap nav"><div class="logo"><span>✳</span> SoilSense-Ai</div><small>Environmental sensor data tools</small></div></header>
 <main class="wrap">
   <section class="intro"><h1>Sensor data dashboard</h1><p>Upload a CSV, choose a tool, and view your results on one dashboard.</p></section>
-  <section class="panel" id="appMount" aria-label="SoilSense analysis workbench">
+  <section class="panel" id="appMount" aria-label="SoilSense-Ai analysis workbench">
     <div class="setup" id="setup"><h2>Connect the analysis app</h2><p>Paste your deployed Streamlit app address into <code>APP_URL</code> in this file. The CSV upload and both tools will then appear directly on this page.</p><pre>const APP_URL = "https://YOUR-APP.streamlit.app";</pre><p><a class="button" href="https://share.streamlit.io/" target="_blank" rel="noopener">Deploy analysis app ↗</a></p></div>
   </section>
   <div class="note">Research prototype trained on orchard observations. Requires the expected sensor channels and units. Candidate faults need expert review; missing-data reconstruction uses the masked Transformer, not a diffusion model.</div>
 </main>
-<footer>SoilSense · Research prototype</footer>
+<footer>SoilSense-Ai · Research prototype</footer>
 <script>
   // STEP 1: Deploy app.py on Streamlit Community Cloud.
   // STEP 2: Paste its public URL here (e.g. "https://soilsense-example.streamlit.app").
@@ -36,7 +36,7 @@
     const iframe = document.createElement('iframe');
     iframe.src = cleanURL + '/?embed=true&embed_options=light_theme';
     iframe.className = 'appframe';
-    iframe.title = 'SoilSense CSV upload and analysis';
+    iframe.title = 'SoilSense-Ai CSV upload and analysis';
     iframe.setAttribute('allow', 'clipboard-write');
     document.getElementById('appMount').replaceChildren(iframe);
     const link = document.createElement('a');
