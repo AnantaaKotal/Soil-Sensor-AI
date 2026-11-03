@@ -1,3 +1,35 @@
+"""SoilSense-Ai — minimal dashboard for masked Transformer sensor screening/imputation."""
+from pathlib import Path
+import hashlib
+import json
+
+import altair as alt
+import numpy as np
+import pandas as pd
+import streamlit as st
+from engine import EXPECTED, load_model, read_csv, validate_csv, analyze
+
+ROOT = Path(__file__).resolve().parent
+st.set_page_config(page_title='SoilSense-Ai | Sensor dashboard', page_icon='🌱', layout='wide', initial_sidebar_state='collapsed')
+st.markdown('''
+<style>
+:root{color-scheme:light}
+.stApp{background:#f7faf7;color:#19382e}
+.block-container{max-width:1160px;padding-top:1.3rem;padding-bottom:2rem}
+[data-testid="stSidebar"], [data-testid="stDecoration"]{display:none}
+h1,h2,h3{letter-spacing:-.035em;color:#153f32!important}
+h1{font-size:2.15rem!important;margin-bottom:.15rem!important}
+[data-testid="stMetric"]{background:#fff;border:1px solid #d8e7df;border-radius:14px;padding:17px 20px;box-shadow:0 2px 8px #1a493208}
+[data-testid="stMetricValue"]{color:#174d3b;font-weight:780}
+.stButton button[kind="primary"],.stDownloadButton button[kind="primary"]{background:#174d3b!important;border-color:#174d3b!important;border-radius:10px!important;color:#fff!important;font-weight:650!important}
+/* Prominent upload panel */
+[data-testid="stFileUploader"]{background:#ffffff;border:2px solid #a8cabb;border-radius:18px;padding:12px 14px;box-shadow:0 4px 14px #123f3010}
+[data-testid="stFileUploaderDropzone"]{min-height:145px;background:#f0f8f3;border:2px dashed #488970;border-radius:14px;padding:24px 18px}
+[data-testid="stFileUploaderDropzone"] button{background:#174d3b!important;color:white!important;border:0!important;font-size:1rem!important;font-weight:750!important;padding:0.65rem 1.15rem!important}
+[data-testid="stFileUploaderDropzone"] small,[data-testid="stFileUploaderDropzone"] span{font-size:1rem!important}
+.upload-heading{font-size:1.6rem;font-weight:850;letter-spacing:-.025em;color:#153f32;margin:0 0 .75rem}
+
+[data-testid="stAlert"]{border-radius:10px}
 hr{border-color:#dce8e0}
 .smallsub{font-size:1rem;color:#658176;margin-bottom:1.25rem}
 </style>
@@ -126,3 +158,4 @@ else:
 
 st.download_button('⬇ Download result CSV',result.to_csv(index=False).encode('utf-8'),file_name=download_name,mime='text/csv',type='primary',use_container_width=True)
 with st.expander('Preview output data'):
+    st.dataframe(result.head(100),hide_index=True,use_container_width=True)
