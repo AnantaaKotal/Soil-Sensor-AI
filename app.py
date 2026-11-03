@@ -1,121 +1,156 @@
-"""Streamlit analysis service for GitHub-hosted Soil AI-Ready Data site."""
-import io
-import json
+"""SoilSense — minimal dashboard for masked Transformer sensor screening/imputation."""
 from pathlib import Path
+import hashlib
+import json
+
+import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
 from engine import EXPECTED, load_model, read_csv, validate_csv, analyze
 
-ROOT=Path(__file__).resolve().parent
-st.set_page_config(page_title='SoilSense | Sensor Data Workbench',page_icon='🌱',layout='wide')
-st.markdown('''<style>
-.block-container{max-width:1180px;padding-top:2.5rem}.hero{padding:1.5rem 1.75rem;border-radius:18px;background:linear-gradient(110deg,#123b34,#285b48);color:#fff;margin-bottom:1.2rem}.hero h1{color:white;margin:0}.hero p{color:#daece3;margin-bottom:0}.stButton>button[kind=primary]{background:#216a51;border:0}
-</style>''',unsafe_allow_html=True)
-st.markdown('<section class="hero"><h1>🌱 SoilSense · Sensor Data Workbench</h1><p>Explore quality-control candidates and reconstruct missing measurements in multivariate environmental records.</p></section>',unsafe_allow_html=True)
-st.warning('Research prototype: trained on one orchard dataset. Alerts are not verified faults. Imputation uses masked Transformer reconstruction, NOT a diffusion model. Check sensor units, calibration and environmental context before using results.',icon='⚠️')
+ROOT = Path(__file__).resolve().parent
+st.set_page_config(page_title='SoilSense | Sensor dashboard', page_icon='🌱', layout='wide', initial_sidebar_state='collapsed')
+st.markdown('''
+<style>
+:root{color-scheme:light}
+.stApp{background:#f7faf7;color:#19382e}
+.block-container{max-width:1160px;padding-top:1.3rem;padding-bottom:2rem}
+[data-testid="stSidebar"], [data-testid="stDecoration"]{display:none}
+h1,h2,h3{letter-spacing:-.035em;color:#153f32!important}
+h1{font-size:2.15rem!important;margin-bottom:.15rem!important}
+[data-testid="stMetric"]{background:#fff;border:1px solid #d8e7df;border-radius:14px;padding:17px 20px;box-shadow:0 2px 8px #1a493208}
+[data-testid="stMetricValue"]{color:#174d3b;font-weight:780}
+.stButton button[kind="primary"],.stDownloadButton button[kind="primary"]{background:#174d3b!important;border-color:#174d3b!important;border-radius:10px!important;color:#fff!important;font-weight:650!important}
+[data-testid="stFileUploader"]{background:#fff;border-radius:12px;padding:4px}
+[data-testid="stAlert"]{border-radius:10px}
+hr{border-color:#dce8e0}
+.smallsub{font-size:1rem;color:#658176;margin-bottom:1.25rem}
+</style>
+''', unsafe_allow_html=True)
 
-@st.cache_resource(show_spinner='Loading trained sensor model…')
+st.title('🌱 SoilSense')
+st.markdown('<div class="smallsub">Upload sensor data. Run an analysis. Explore and download your results.</div>', unsafe_allow_html=True)
+
+@st.cache_resource(show_spinner=False)
 def get_model():
     return load_model(ROOT/'models'/'soil_transformer.pt')
 
-with st.sidebar:
-    st.header('Analysis setup')
-    operation=st.radio('Choose a tool',['Detect sensor anomalies','Fill missing sensor values'], help='Both tools use the trained cross-sensor masked Transformer.')
-    if operation.startswith('Detect'):
-        threshold_mode=st.radio('Alert threshold',['Dataset-relative (recommended for exploration)','Original orchard calibration'], help='Dataset-relative thresholds are per sensor. They control the fraction of high residuals selected on the uploaded dataset, not the false-positive rate. Orchard thresholds may have severe distribution shift.')
-        if threshold_mode.startswith('Dataset'):
-            sensitivity=st.slider('High-residual percentile', 90, 99, 98,help='98 = marks approximately the top 2% of scorable sensor readings for each channel. Not a calibrated confidence estimate.')
-        else:
-            sensitivity=95
-    st.divider()
-    st.caption('Expected cadence: 5 minutes, with at least nine successive rows for predictions. The model expects these exact sensor names and compatible units:')
-    st.code(', '.join(EXPECTED),language=None)
+# Avoid stale results when an uploaded file is replaced with a new file using the same name.
+if 'latest' not in st.session_state:
+    st.session_state.latest = None
 
-file=st.file_uploader('Upload a CSV containing a timestamp and the model sensor columns',type=['csv'])
-left,right=st.columns([1.3,1])
+left, right = st.columns([1.45, 1], gap='large')
 with left:
-    st.markdown('**New here?** Start with the example CSV to check the layout.')
+    st.markdown('**1 · Upload dataset**')
+    uploaded = st.file_uploader('CSV file', type='csv', label_visibility='collapsed')
 with right:
-    st.download_button('Download example CSV',data=(ROOT/'examples'/'sample_sensor_data.csv').read_bytes(),file_name='sample_sensor_data.csv',mime='text/csv',use_container_width=True)
-if file is None:
-    st.subheader('Two tools, one transparent workflow')
-    c1,c2=st.columns(2)
-    with c1:
-        st.markdown('#### 🔎 Fault screening')
-        st.write('Compare each sensor measurement against a prediction reconstructed from other sensors and neighboring timestamps. Download candidate alerts and residual scores for expert review.')
-    with c2:
-        st.markdown('#### 🧩 Missing-data reconstruction')
-        st.write('Fill missing values using cross-sensor context where enough observations exist. Original measurements remain unchanged; reconstructed cells are explicitly flagged.')
-    st.info('For genuine diffusion-model imputation, a separate trained diffusion checkpoint and inference code are still needed.')
+    st.markdown('**2 · Select analysis**')
+    operation = st.selectbox('Analysis', ('Sensor anomaly detection', 'Missing data reconstruction'), label_visibility='collapsed')
+
+with st.expander('Data requirements and options', expanded=False):
+    st.caption('Required: a timestamp column, 5-minute spacing, and the ten sensor channels below in compatible units. At least 9 consecutive rows are needed.')
+    st.code(', '.join(EXPECTED),language=None)
+    st.download_button('Download example CSV', (ROOT/'examples'/'sample_sensor_data.csv').read_bytes(),file_name='soilsense_example.csv',mime='text/csv')
+    if operation == 'Sensor anomaly detection':
+        threshold_mode=st.selectbox('Anomaly threshold', ['Dataset-relative','Original orchard calibration'], help='Dataset-relative finds the highest mismatch scores in the uploaded file. Original calibration can generate many false alerts on other datasets.')
+        percentile=st.slider('Dataset-relative cutoff percentile',90,99,98) if threshold_mode=='Dataset-relative' else 95
+    else:
+        threshold_mode='Dataset-relative'
+        percentile=98
+
+if uploaded is None:
+    st.info('Upload a CSV to get started. The example CSV is available under Data requirements and options.')
     st.stop()
 
 try:
-    if file.size>15*1024*1024:
-        st.error('CSV exceeds the 15 MB size limit for this public prototype.');st.stop()
-    data=read_csv(file)
-    probable=[x for x in data.columns if 'time' in x.lower() or 'date' in x.lower()]
-    time_col=st.selectbox('Timestamp column',data.columns.tolist(), index=(data.columns.tolist().index(probable[0]) if probable else 0))
-    clean,dt=validate_csv(data,time_col)
-except Exception as e:
-    st.error(f'Invalid CSV: {e}'); st.stop()
+    content=uploaded.getvalue()
+    if len(content)>15*1024*1024:
+        st.error('File exceeds the 15 MB upload limit for this prototype.')
+        st.stop()
+    from io import BytesIO
+    source=read_csv(BytesIO(content))
+    probable=[i for i,c in enumerate(source.columns) if 'time' in c.lower() or 'date' in c.lower()]
+    time_col=st.selectbox('Timestamp column', source.columns.tolist(), index=probable[0] if probable else 0)
+    data,dates=validate_csv(source,time_col)
+except Exception as exc:
+    st.error(f'Cannot process this CSV: {exc}')
+    st.stop()
 
-nrows=len(clean)
-missing=int(clean[EXPECTED].isna().sum().sum())
-st.caption(f'{nrows:,} rows · {len(EXPECTED)} sensors · {missing:,} missing sensor values · UTC-normalized timestamps')
-st.dataframe(clean.head(6),use_container_width=True,hide_index=True)
+missing=int(data[EXPECTED].isna().sum().sum())
+st.caption(f'**{len(data):,}** rows · **{len(EXPECTED)}** sensors · **{missing:,}** missing values')
+file_key=hashlib.sha256(content).hexdigest()
+request_key=(file_key,time_col,operation,threshold_mode,percentile)
 
-if st.button('Run analysis', type='primary'):
-    with st.spinner('Reconstructing sensor expectations…'):
+if st.button('Run analysis',type='primary',use_container_width=True):
+    with st.spinner('Running the model on your sensor data…'):
         try:
             model,median,scale=get_model()
-            progress_bar=st.progress(0)
-            progress=lambda f: progress_bar.progress(min(100,max(0,int(f*100))))
-            if operation.startswith('Detect'):
-                thresholds=None
-                if threshold_mode.startswith('Original'):
-                    thresholds=json.loads((ROOT/'models'/'soil_fault_metrics.json').read_text())['thresholds']['Masked Transformer']
-                result,stats=analyze(clean,dt,model,median,scale,mode='anomaly',quantile=sensitivity/100,reference_thresholds=thresholds,progress=progress)
+            if operation == 'Sensor anomaly detection':
+                reference=None
+                if threshold_mode=='Original orchard calibration':
+                    reference=json.loads((ROOT/'models'/'soil_fault_metrics.json').read_text())['thresholds']['Masked Transformer']
+                result,stats=analyze(data,dates,model,median,scale,mode='anomaly',quantile=percentile/100,reference_thresholds=reference)
             else:
-                result,stats=analyze(clean,dt,model,median,scale,mode='impute',progress=progress)
-            st.session_state['result']=result
-            st.session_state['stats']=stats
-            st.session_state['input_file_name']=file.name
-            st.session_state['operation']=operation
-            st.session_state['time_col']=time_col
-        except Exception as e:
-            st.error(f'Analysis failed: {e}');st.stop()
+                result,stats=analyze(data,dates,model,median,scale,mode='impute')
+            st.session_state.latest={'key':request_key,'result':result,'stats':stats}
+        except Exception as exc:
+            st.error(f'Analysis failed: {exc}')
+            st.stop()
 
-if 'result' in st.session_state and st.session_state.get('input_file_name')==file.name and st.session_state.get('operation')==operation:
-    result=st.session_state['result'];stats=st.session_state['stats']
-    st.success('Completed analysis on the uploaded CSV.')
-    if operation.startswith('Detect'):
-        c1,c2,c3=st.columns(3)
-        c1.metric('Candidate sensor-cell alerts',f"{stats['alert_cells']:,}")
-        c2.metric('Timestamps with alerts',f"{stats['alert_timestamps']:,}")
-        c3.metric('Analyzable 5-minute windows',f"{stats['valid_centers']:,}")
-        st.caption('These are candidates for manual review, not confirmed faults. Cross-sensor co-movement or changed conditions can also trigger alerts.')
-    else:
-        a,b,c=st.columns(3)
-        a.metric('Imputed sensor values',f"{stats['imputed_cells']:,}")
-        b.metric('Remaining missing values',f"{stats['unfilled_cells']:,}")
-        c.metric('Analyzable 5-minute windows',f"{stats['valid_centers']:,}")
-        st.caption('No extrapolation over timestamp gaps or outside nine-point windows. Predictions require at least three other present sensors at the target time.')
-    sensor=st.selectbox('Inspect sensor', EXPECTED)
-    plot=pd.DataFrame({'Timestamp':dt,'Observed':clean[sensor]})
-    if operation.startswith('Detect'):
-        plot['Expected']=result[f'{sensor}__expected']
-        st.line_chart(plot.set_index('Timestamp')[['Observed','Expected']],use_container_width=True)
-        st.line_chart(pd.DataFrame({'Timestamp':dt,'Reconstruction mismatch':result[f'{sensor}__score']}).set_index('Timestamp'),use_container_width=True)
-        selected=result.loc[result[f'{sensor}__candidate_fault'],[time_col,sensor,f'{sensor}__score']]
-        st.markdown(f'**{len(selected):,} candidate alerts** for `{sensor}`')
-        st.dataframe(selected.head(250),use_container_width=True,hide_index=True)
-    else:
-        plot['Reconstructed']=result[sensor]
-        st.line_chart(plot.set_index('Timestamp')[['Observed','Reconstructed']],use_container_width=True)
-        st.caption(f"{int(result[f'{sensor}__was_imputed'].sum())} imputed values in {sensor}.")
-    st.download_button('Download analysis CSV',result.to_csv(index=False).encode('utf-8'),file_name='soil_sense_'+('anomaly_flags' if operation.startswith('Detect') else 'imputed')+'.csv',mime='text/csv',type='primary')
-    st.dataframe(result.head(100),use_container_width=True,hide_index=True)
+saved=st.session_state.latest
+if saved is None or saved['key']!=request_key:
+    st.caption('Click **Run analysis** to display the dashboard.')
+    st.stop()
 
+result,stats=saved['result'],saved['stats']
 st.divider()
-st.caption('Research prototype · On-device training not provided · For data reuse, review uncertainty, sensor provenance, unit compatibility, and field conditions. Uploaded data are processed by the Python app server; do not upload sensitive datasets without reviewing its hosting policy.')
+st.subheader('Results dashboard')
+
+if operation == 'Sensor anomaly detection':
+    m1,m2,m3=st.columns(3,gap='medium')
+    m1.metric('Anomalous sensor readings',f"{stats['alert_cells']:,}")
+    m2.metric('Timestamps with anomalies',f"{stats['alert_timestamps']:,}")
+    m3.metric('Analyzed time windows',f"{stats['valid_centers']:,}")
+    st.caption('Anomaly labels are screening candidates, not verified instrument faults. Non-evaluable measurements are marked “not evaluated.”')
+    sensor=st.selectbox('Sensor to inspect',EXPECTED)
+    flag=result[f'{sensor}__candidate_fault'].fillna(False).to_numpy(dtype=bool)
+    chart_df=pd.DataFrame({'Time':dates,'Observed':data[sensor].to_numpy(),'Expected':result[f'{sensor}__expected'].to_numpy(),'Anomaly':flag})
+    traces=chart_df.melt(id_vars='Time',value_vars=['Observed','Expected'],var_name='Series',value_name='Value').dropna()
+    base=alt.Chart(traces).mark_line(strokeWidth=2).encode(
+        x=alt.X('Time:T',title='Time'),y=alt.Y('Value:Q',title=sensor,scale=alt.Scale(zero=False)),
+        color=alt.Color('Series:N',scale=alt.Scale(domain=['Observed','Expected'],range=['#166b54','#9abbb0'])),tooltip=['Time:T','Series:N',alt.Tooltip('Value:Q',format='.3f')])
+    points=alt.Chart(chart_df.loc[chart_df['Anomaly']]).mark_circle(size=75,color='#db5c45',opacity=.92).encode(x='Time:T',y='Observed:Q',tooltip=['Time:T',alt.Tooltip('Observed:Q',format='.3f')])
+    st.altair_chart((base+points).properties(height=340).interactive(),use_container_width=True)
+    st.caption(f'**{int(flag.sum()):,}** candidate anomalous readings in {sensor}; highlighted in coral.')
+    with st.expander('Inspect flagged readings'):
+        flagged_rows=result[result['anomaly_label']=='anomaly']
+        st.dataframe(flagged_rows[[time_col,'anomaly_label','candidate_fault_count']].head(500),hide_index=True,use_container_width=True)
+    download_name='soilsense_anomaly_labels.csv'
+    st.markdown('**Download labeled dataset**')
+    st.caption('Includes `anomaly_label` (anomaly / regular / not evaluated), plus per-sensor labels and reconstruction scores.')
+else:
+    m1,m2,m3=st.columns(3,gap='medium')
+    m1.metric('Reconstructed values',f"{stats['imputed_cells']:,}")
+    m2.metric('Missing values remaining',f"{stats['unfilled_cells']:,}")
+    m3.metric('Analyzed time windows',f"{stats['valid_centers']:,}")
+    sensor=st.selectbox('Sensor to inspect',EXPECTED)
+    reconstructed=result[sensor].to_numpy()
+    observed=data[sensor].to_numpy()
+    filled=result[f'{sensor}__was_imputed'].to_numpy(dtype=bool)
+    graph=pd.DataFrame({'Time':dates,'Original':observed,'Reconstructed series':reconstructed,'Filled':filled})
+    traces=graph.melt(id_vars='Time',value_vars=['Original','Reconstructed series'],var_name='Series',value_name='Value').dropna()
+    base=alt.Chart(traces).mark_line(strokeWidth=2).encode(
+        x=alt.X('Time:T',title='Time'),y=alt.Y('Value:Q',title=sensor,scale=alt.Scale(zero=False)),
+        color=alt.Color('Series:N',scale=alt.Scale(domain=['Original','Reconstructed series'],range=['#a5b6b0','#137757'])),tooltip=['Time:T','Series:N',alt.Tooltip('Value:Q',format='.3f')])
+    points=alt.Chart(graph.loc[graph['Filled']]).mark_circle(size=70,color='#e4a548').encode(x='Time:T',y=alt.Y('Reconstructed series:Q'),tooltip=['Time:T',alt.Tooltip('Reconstructed series:Q',format='.3f')])
+    st.altair_chart((base+points).properties(height=340).interactive(),use_container_width=True)
+    st.caption(f'**{int(filled.sum()):,}** values reconstructed for {sensor}, shown in amber. Existing observations are unchanged.')
+    download_name='soilsense_reconstructed.csv'
+    st.markdown('**Download reconstructed dataset**')
+    st.caption('Includes original columns and `__was_imputed` flags indicating the cells reconstructed by the model.')
+
+st.download_button('⬇ Download result CSV',result.to_csv(index=False).encode('utf-8'),file_name=download_name,mime='text/csv',type='primary',use_container_width=True)
+with st.expander('Preview output data'):
+    st.dataframe(result.head(100),hide_index=True,use_container_width=True)
+st.caption('Research prototype trained on one orchard dataset. Expected units and sensor columns are required. Imputation uses the masked Transformer, not a diffusion model. Data are processed on the Streamlit server; avoid sensitive uploads.')
