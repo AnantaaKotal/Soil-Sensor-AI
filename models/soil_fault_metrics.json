@@ -1,0 +1,256 @@
+{
+  "dataset": {
+    "original_rows": 8805,
+    "channels_modeled": [
+      "CO2_30",
+      "CO2_60",
+      "O2_30",
+      "O2_60",
+      "VWC_30",
+      "VWC_60",
+      "SoilT_30",
+      "SoilT_60",
+      "Air_P",
+      "ESFD_Flux"
+    ],
+    "constant_excluded": [
+      "Surface_CO2"
+    ],
+    "train_rows_valid": 5242,
+    "validation_rows_valid": 1753,
+    "test_rows_valid": 1745,
+    "time_gaps_over_five_minutes": 6,
+    "train_cutoff_row": 5283,
+    "validation_cutoff_row": 7044
+  },
+  "evaluation": {
+    "synthetic_only": true,
+    "injected_episodes": 90,
+    "injected_cells_test": 1496,
+    "unaltered_test_cells": 17450,
+    "calibration": "sensor-specific 95th percentile of clean validation residual",
+    "caution": "Scores detect artificial corruptions, not verified faults; clean test alerts are unverified."
+  },
+  "results": [
+    {
+      "model": "Persistence",
+      "roc_auc": 0.5054736872183999,
+      "average_precision": 0.1669112163091402,
+      "precision": 0.4149139579349904,
+      "recall": 0.29010695187165775,
+      "f1": 0.34146341463414637,
+      "clean_test_alert_rate": 0.03277936962750716,
+      "injected_positive_fraction": 0.08573065902578797,
+      "recall_spike": 0.8461538461538461,
+      "recall_offset": 0.11730205278592376,
+      "recall_drift": 0.9785276073619632,
+      "recall_stuck": 0.00510204081632653,
+      "recall_dropout": 0.04838709677419355
+    },
+    {
+      "model": "Temporal interpolation",
+      "roc_auc": 0.4322743101993096,
+      "average_precision": 0.13572901730103132,
+      "precision": 0.20494053064958828,
+      "recall": 0.1497326203208556,
+      "f1": 0.17303978370027037,
+      "clean_test_alert_rate": 0.0430945558739255,
+      "injected_positive_fraction": 0.08573065902578797,
+      "recall_spike": 0.9846153846153847,
+      "recall_offset": 0.21700879765395895,
+      "recall_drift": 0.12883435582822086,
+      "recall_stuck": 0.02040816326530612,
+      "recall_dropout": 0.0967741935483871
+    },
+    {
+      "model": "Cross-sensor ridge",
+      "roc_auc": 0.775524251206175,
+      "average_precision": 0.3709175277545586,
+      "precision": 0.17782088587132233,
+      "recall": 0.7352941176470589,
+      "f1": 0.2863837542306691,
+      "clean_test_alert_rate": 0.1935243553008596,
+      "injected_positive_fraction": 0.08573065902578797,
+      "recall_spike": 0.8769230769230769,
+      "recall_offset": 0.8651026392961877,
+      "recall_drift": 0.7423312883435583,
+      "recall_stuck": 0.34183673469387754,
+      "recall_dropout": 1.0
+    },
+    {
+      "model": "Masked Transformer",
+      "roc_auc": 0.7529942367729683,
+      "average_precision": 0.5502931414158067,
+      "precision": 0.10074398249452954,
+      "recall": 0.7693850267379679,
+      "f1": 0.17815958517142635,
+      "clean_test_alert_rate": 0.6413180515759312,
+      "injected_positive_fraction": 0.08573065902578797,
+      "recall_spike": 0.8,
+      "recall_offset": 0.8387096774193549,
+      "recall_drift": 0.7975460122699386,
+      "recall_stuck": 0.461734693877551,
+      "recall_dropout": 1.0
+    }
+  ],
+  "environmental_event_proxy": {
+    "Persistence": {
+      "event_proxy_alert_rate": 0.4772727272727273,
+      "other_timestamps_alert_rate": 0.2685576342788171
+    },
+    "Temporal interpolation": {
+      "event_proxy_alert_rate": 0.5681818181818182,
+      "other_timestamps_alert_rate": 0.34821967410983706
+    },
+    "Cross-sensor ridge": {
+      "event_proxy_alert_rate": 0.9886363636363636,
+      "other_timestamps_alert_rate": 0.9903439951719976
+    },
+    "Masked Transformer": {
+      "event_proxy_alert_rate": 1.0,
+      "other_timestamps_alert_rate": 1.0
+    }
+  },
+  "thresholds": {
+    "Persistence": {
+      "CO2_30": 0.01623624563217163,
+      "CO2_60": 0.05187313258647919,
+      "O2_30": 0.006120651960372925,
+      "O2_60": 0.0013992786407470703,
+      "VWC_30": 0.005498230457305908,
+      "VWC_60": 0.03299500420689583,
+      "SoilT_30": 0.12190771102905273,
+      "SoilT_60": 0.16451311111450195,
+      "Air_P": 0.08960962295532227,
+      "ESFD_Flux": 0.32399415969848633
+    },
+    "Temporal interpolation": {
+      "CO2_30": 0.008118152618408203,
+      "CO2_60": 0.050638049840927124,
+      "O2_30": 0.0030603408813476562,
+      "O2_60": 0.0013992786407470703,
+      "VWC_30": 0.0049343048594892025,
+      "VWC_60": 0.0298224575817585,
+      "SoilT_30": 0.06095385551452637,
+      "SoilT_60": 0.16451311111450195,
+      "Air_P": 0.08960959315299988,
+      "ESFD_Flux": 0.2577226161956787
+    },
+    "Cross-sensor ridge": {
+      "CO2_30": 1.7939603328704834,
+      "CO2_60": 0.9629467725753784,
+      "O2_30": 0.4881947636604309,
+      "O2_60": 0.5719390511512756,
+      "VWC_30": 0.17965275049209595,
+      "VWC_60": 0.7078595161437988,
+      "SoilT_30": 0.8168618083000183,
+      "SoilT_60": 1.0329561233520508,
+      "Air_P": 3.8028595447540283,
+      "ESFD_Flux": 1.1476669311523438
+    },
+    "Masked Transformer": {
+      "CO2_30": 0.7563424706459045,
+      "CO2_60": 0.15774035453796387,
+      "O2_30": 0.222975492477417,
+      "O2_60": 0.6077024936676025,
+      "VWC_30": 0.4938325583934784,
+      "VWC_60": 0.34254884719848633,
+      "SoilT_30": 2.2453784942626953,
+      "SoilT_60": 1.7555567026138306,
+      "Air_P": 3.188683271408081,
+      "ESFD_Flux": 0.7898140549659729
+    }
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_masked_loss": 0.2412655151316098,
+      "val_masked_loss": 0.35146686248481274
+    },
+    {
+      "epoch": 2,
+      "train_masked_loss": 0.11840010620653629,
+      "val_masked_loss": 0.34490894330665467
+    },
+    {
+      "epoch": 3,
+      "train_masked_loss": 0.0777192594749587,
+      "val_masked_loss": 0.295206915657036
+    },
+    {
+      "epoch": 4,
+      "train_masked_loss": 0.06545890867710114,
+      "val_masked_loss": 0.29873687147628514
+    },
+    {
+      "epoch": 5,
+      "train_masked_loss": 0.06443417870572635,
+      "val_masked_loss": 0.3055362357525155
+    },
+    {
+      "epoch": 6,
+      "train_masked_loss": 0.05860372419868197,
+      "val_masked_loss": 0.30012134537100793
+    },
+    {
+      "epoch": 7,
+      "train_masked_loss": 0.05093606747686863,
+      "val_masked_loss": 0.2964067852590233
+    },
+    {
+      "epoch": 8,
+      "train_masked_loss": 0.051059311787996976,
+      "val_masked_loss": 0.3085345297586173
+    },
+    {
+      "epoch": 9,
+      "train_masked_loss": 0.052891973073461225,
+      "val_masked_loss": 0.3059247049037367
+    },
+    {
+      "epoch": 10,
+      "train_masked_loss": 0.04712030391341874,
+      "val_masked_loss": 0.3243838296912145
+    },
+    {
+      "epoch": 11,
+      "train_masked_loss": 0.050122553549174755,
+      "val_masked_loss": 0.2902757638541516
+    },
+    {
+      "epoch": 12,
+      "train_masked_loss": 0.05059350714353578,
+      "val_masked_loss": 0.2912295617396012
+    },
+    {
+      "epoch": 13,
+      "train_masked_loss": 0.045069958748562,
+      "val_masked_loss": 0.30114970423746856
+    },
+    {
+      "epoch": 14,
+      "train_masked_loss": 0.03915557671072228,
+      "val_masked_loss": 0.28579861065372825
+    },
+    {
+      "epoch": 15,
+      "train_masked_loss": 0.042000279761850834,
+      "val_masked_loss": 0.28541725592222067
+    },
+    {
+      "epoch": 16,
+      "train_masked_loss": 0.0429583849784519,
+      "val_masked_loss": 0.2857548905536532
+    },
+    {
+      "epoch": 17,
+      "train_masked_loss": 0.04194461940122502,
+      "val_masked_loss": 0.2850183817557991
+    },
+    {
+      "epoch": 18,
+      "train_masked_loss": 0.04178599201674972,
+      "val_masked_loss": 0.2722574901301414
+    }
+  ]
+}
