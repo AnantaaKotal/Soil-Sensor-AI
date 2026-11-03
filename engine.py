@@ -122,9 +122,13 @@ def analyze(df,dt,model,median,scale,mode='anomaly',quantile=.99,reference_thres
                 limit=float(np.quantile(observed,quantile)) if len(observed)>=20 else np.nan
             result[f'{name}__expected']=preds[:,j]
             result[f'{name}__score']=s
-            result[f'{name}__candidate_fault']=(s>limit) if np.isfinite(limit) else False
+            flags=(s>limit) if np.isfinite(limit) else np.zeros_like(s,dtype=bool)
+            result[f'{name}__candidate_fault']=flags
+            result[f'{name}__label']=np.where(~np.isfinite(s),'not evaluated',np.where(flags,'anomaly','regular'))
         alerts=result[[f'{v}__candidate_fault' for v in EXPECTED]].sum(axis=1)
         result['candidate_fault_count']=alerts
+        evaluated=result[[f'{v}__label' for v in EXPECTED]].ne('not evaluated').any(axis=1)
+        result['anomaly_label']=np.where(alerts>0,'anomaly',np.where(evaluated,'regular','not evaluated'))
         return result,{'valid_centers':int(valid_centers.sum()),'alert_cells':int(alerts.sum()),'alert_timestamps':int((alerts>0).sum()), 'mode':'reference thresholds' if use_reference else 'dataset-relative scores'}
     if mode=='impute':
         n=0
